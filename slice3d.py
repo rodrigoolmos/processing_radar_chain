@@ -100,28 +100,6 @@ def produce_RV_slice(data):
 
     # output format [range, velocity, 2chirps]
     fft3d_data = np.float32(np.concatenate((fft3d_data1, fft3d_data2), axis=2))
-    return fft3d_data, fft_data_raw1, fft_data_raw2
-
-
-def produce_VA_slice(rv_raw1, rv_raw2):
-    hanning_win = np.hamming(n_rx)
-    win_data1 = np.zeros([rv_raw1.shape[0], rv_raw1.shape[1], rv_raw1.shape[2]], dtype=np.complex128)
-    win_data2 = np.zeros([rv_raw2.shape[0], rv_raw2.shape[1], rv_raw2.shape[2]], dtype=np.complex128)
-    for i in range(rv_raw1.shape[0]):
-        for j in range(rv_raw1.shape[2]):
-            win_data1[i, :, j] = np.multiply(rv_raw1[i, :, j], hanning_win)
-            win_data2[i, :, j] = np.multiply(rv_raw2[i, :, j], hanning_win)
-
-    fft_data_raw1 = np.fft.fft(win_data1, n_angle, axis=1)
-    fft3d_data1 = np.sum(np.abs(np.fft.fftshift(fft_data_raw1, axes=1)), axis=0) / rv_raw1.shape[0]
-    fft3d_data1 = np.expand_dims(fft3d_data1, axis=2)
-
-    fft_data_raw2 = np.fft.fft(win_data2, n_angle, axis=1)
-    fft3d_data2 = np.sum(np.abs(np.fft.fftshift(fft_data_raw2, axes=1)), axis=0) / rv_raw2.shape[0]
-    fft3d_data2 = np.expand_dims(fft3d_data2, axis=2)
-
-    # output format [angle, velocity, 2chirps]
-    fft3d_data = np.float32(np.concatenate((fft3d_data1, fft3d_data2), axis=2))
     return fft3d_data
 
 
@@ -288,7 +266,6 @@ def main():
     Input: raw ADC data
     Output: RA slice (real and imaginary part of the first chirp after the denoise)
     RV slice (accumulate along the Angle domain)
-    VA slice (accumulate along the Range domain)
     """
     root_dir = os.path.join(os.path.dirname(__file__), 'slice_sample_data')
     files = sorted(
@@ -308,29 +285,22 @@ def main():
         # Range FFT
         data = range_fft(data)
         # generate RV slice
-        RV_slice, rv_raw1, rv_raw2 = produce_RV_slice(data) # (128, 128, 2)
-        # generate VA slice
-        VA_slice = produce_VA_slice(rv_raw1, rv_raw2)   # (128, 128, 2)
+        RV_slice = produce_RV_slice(data) # (128, 128, 2)
         # generate RA slice
         RA_slice = produce_RA_slice(data)   # (128, 128, 255, 2)
         RA_map = np.sqrt(RA_slice[:, :, 0, 0] ** 2 + RA_slice[:, :, 0, 1] ** 2)
         RV_map = RV_slice[:, :, 0]
-        VA_map = VA_slice[:, :, 0]
         RA_cfar = cfar2(RA_map, guard_cells_row=cfar_guard_cells_row, guard_cells_col=cfar_guard_cells_col,
                         training_cells_row=cfar_training_cells_row, training_cells_col=cfar_training_cells_col,
                         threshold_scale_row=cfar_threshold_scale_row, threshold_scale_col=cfar_threshold_scale_col)
         RV_cfar = cfar2(RV_map, guard_cells_row=cfar_guard_cells_row, guard_cells_col=cfar_guard_cells_col,
                         training_cells_row=cfar_training_cells_row, training_cells_col=cfar_training_cells_col,
                         threshold_scale_row=cfar_threshold_scale_row, threshold_scale_col=cfar_threshold_scale_col)
-        VA_cfar = cfar2(VA_map, guard_cells_row=cfar_guard_cells_row, guard_cells_col=cfar_guard_cells_col,
-                        training_cells_row=cfar_training_cells_row, training_cells_col=cfar_training_cells_col,
-                        threshold_scale_row=cfar_threshold_scale_row, threshold_scale_col=cfar_threshold_scale_col)
         _, RA_clusters = cluster_detections(RA_cfar, RA_map, cluster_radius, cluster_min_size)
         _, RV_clusters = cluster_detections(RV_cfar, RV_map, cluster_radius, cluster_min_size)
-        _, VA_clusters = cluster_detections(VA_cfar, VA_map, cluster_radius, cluster_min_size)
 
-        # Create 2x3 sub plots: maps on top, detections overlaid below.
-        gs = gridspec.GridSpec(2, 3)
+        # Create 2x2 sub plots: maps on top, detections overlaid below.
+        gs = gridspec.GridSpec(2, 2)
         fig = plt.figure(tight_layout=True)
         fig.suptitle(f"Processing {file_name}")
         ax = plt.subplot(gs[0, 0])  # row 0, col 0
@@ -341,18 +311,11 @@ def main():
         plt.imshow(RV_map, origin='lower')
         ax2.set_title("RV Slice")
 
-        ax3 = plt.subplot(gs[0, 2])  # row 0, col 2
-        plt.imshow(VA_map)
-        ax3.set_title("VA Slice")
-
         ax = plt.subplot(gs[1, 0])
         plot_detection_overlay(ax, RA_map, RA_cfar, RA_clusters, "RA", origin='lower')
 
         ax2 = plt.subplot(gs[1, 1])
         plot_detection_overlay(ax2, RV_map, RV_cfar, RV_clusters, "RV", origin='lower')
-
-        ax3 = plt.subplot(gs[1, 2])
-        plot_detection_overlay(ax3, VA_map, VA_cfar, VA_clusters, "VA")
         plt.show()
 
 

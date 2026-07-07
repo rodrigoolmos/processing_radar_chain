@@ -1,0 +1,31 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Native build outputs
+slice3d_chain
+fft_test
+*.o
+*.out
+
+# Generated radar pipeline outputs
+*_adc_complex64.bin
+*_ra_map.npy
+*_rv_map.npy
+*_rv_slice.npy
+*_ra_cfar.npy
+*_rv_cfar.npy
+*_ra_clusters.npy
+*_rv_clusters.npy
+
+# Generated images/logs
+*.png
+*.log
+
+# Temporary/editor files
+*.tmp
+*~
+.DS_Store
+
+# vscode settings
+.vscode/
